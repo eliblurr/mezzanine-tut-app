@@ -1,0 +1,319 @@
+Eg1
+#python manage.py startapp book
+
+#book/models.py
+from django.db import models
+from mezzanine.pages.models import Page
+
+# Auther model (Page) ,
+#title field author’s name
+#“Date of birth”
+
+class Author(Page):
+	dob = models.DateField("Date of birth")
+
+class Book(models.Model):
+	author = models.ForeignKey("Author")
+	cover = models.ImageField(upload_to="authors")
+
+
+#book/admin.py
+from django.contrib import admin
+from mezzanine.pages.admin import PageAdmin
+from .models import Author
+admin.site.register(Author, PageAdmin)
+
+
+#templates/pages/author.html
+
+{% extends "pages/page.html" %}
+{% load mezzanine_tags %}
+{% block main %}
+	{{ block.super }}
+	<h1>{{ page.author.title }}</h1>
+	<p>{{ page.author.dob }}</p>
+	{% for book in page.author.book_set.all %}
+		<img src="{{ MEDIA_URL }}{{ book.cover }}">
+	{% endfor %}
+{% endblock %}
+
+
+INSTALLED_APPS = ( "django.contrib.admin", … "books", ) settings.py taichung/settings.py http://goo.gl/J7iDaI
+
+
+
+#Eg2 Poll  One to Manyn
+
+
+#poll/models.py
+from django.db import models
+from mezzanine.pages.models import Page
+
+
+
+#Page model.
+#title field
+# data field: pub_date
+
+class Poll(Page):
+	pub_date = models.DateTimeField("Date published")
+
+
+class Choice(models.Model):
+	poll = models.ForeignKey(Poll)
+	choice_text = models.CharField(max_length=200)
+	votes = models.IntegerField(default=0)
+
+
+#books/admin.py
+
+from copy import deepcopy
+from django.contrib import admin
+from mezzanine.core.admin  import TabularDynamicInlineAdmin
+from mezzanine.pages.admin import PageAdmin
+from .models import Poll, Choice
+
+poll_extra_fieldsets = ((None, {"fields": ("pub_date",)}),)
+
+class ChoiceInline(TabularDynamicInlineAdmin):
+	model = Choice class PollAdmin(PageAdmin):
+	inlines = (ChoiceInline,)
+	fieldsets = (deepcopy(PageAdmin.fieldsets) + poll_extra_fieldsets)
+	admin.site.register(Poll, PollAdmin)
+
+
+#poll/templates/pages/poll.html
+{% extends "pages/page.html" %}
+{% load mezzanine_tags %}
+{% block title %}
+	{% editable page.poll.title %}
+		{{ page.poll.title }}
+	{% endeditable %}
+{% endblock %}
+{% block main %}
+	{{ block.super }}
+	<p>Published at {{ page.poll.pub_date }}</p>
+	<ul>
+		{% for choice in page.poll.choice_set.all %}
+			<li><b>{{ choice.choice_text }}</b> votes: <span class="badge">{{ choice.votes }}</span></li>
+		{% endfor %} </ul>
+{% endblock %}
+
+
+
+Page Processor
+• Since every Page instance is handled via the view function mezzanine.pages.views.page()
+• We can’t create our own views for pages. • Mezzanine solves this problem using Page Processors.
+• Page Processors are simply functions that can be associated to
+• any custom Page models and
+• are called inside the mezzanine.pages.views.page() view
+• input argument: the request and the Page instance
+• returns:
+	• a dictionary ( to be added to the template context)
+	• Django’s HttpResponse classes (to override mezzanine.pages.views.page() view entirely.
+
+
+from django.shortcuts import get_object_or_404
+from mezzanine.pages.page_processors
+import processor_for from .models
+import Poll, Choice
+
+@processor_for(Poll)
+def poll_form(request, page):
+	if request.method == "POST":
+		p = get_object_or_404(Poll, pk=page.poll.id)
+	try:
+		selected_choice = p.choice_set.get(pk=request.POST['choice'])
+	except (KeyError, Choice.DoesNotExist):
+		return {'error_message': "You didn't select a choice."}
+	else:
+		selected_choice.votes += 1 selected_choice.save()
+		return {'success_message': "Thank you for your vote."}
+
+@polls/page_processors.py
+
+#@Poll.html poll/template/pages/poll.html
+
+<h2>Vote!!!</h2>
+{% if error_message %}
+	<div class="alert alert- danger">{{ error_message }}</div>
+{% endif %}
+{% if success_message %}
+	<div class="alert alert- success">{{ success_message }}</div>
+{% endif %}
+
+<form action="." method="post">
+	{% csrf_token %}
+	{% for choice in page.poll.choice_set.all %}
+		<input type="radio" name="choice" id="choice{{ forloop.counter }}" value="{{ choice.id }}" />
+		<label for="choice{{ forloop.counter }}">{{ choice.choice_text }}</label><br />
+	{% endfor %}
+	<input type="submit" value="Vote" />
+</form>
+
+
+
+3rd Party Templating
+• Download themes
+• https://github.com/thecodinghouse/mezzanine-themes
+• Install a theme
+• http://goo.gl/qz921c
+• create a Django app with templates and static directories
+• copy the relevant HTML, CSS and JavaScript files into it
+• add the theme app’s name to your project’s INSTALLED_APPS setting
+
+
+Eg3  Many to Many
+
+from django.db import models
+from  mezzanine.pages.models import Page, RichText
+from mezzanine.core.models import  Slugged
+from django.urls import reverse
+from django.utils.translation import gettext_lazy as _
+
+from mezzanine.conf import settings
+from mezzanine.core.fields import FileField
+from mezzanine.utils.models import AdminThumbMixin, upload_to
+
+
+class RichTextMixin(RichText):
+    edit_as_html = models.BooleanField(default=False)
+
+    class Meta:
+        abstract = True
+
+
+class NRSANewsEventCategory(Slugged):
+    """
+    A category for grouping news posts into a series.
+    """
+    class Meta:
+        verbose_name = _("News Category")
+        verbose_name_plural = _("News Categories")
+        ordering = ("title",)
+
+    @models.permalink
+    def get_absolute_url(self):
+        return reverse("nrsa_news_events_list_category", kwargs={"nrsa_news_event_category": self.slug})
+
+
+
+class NRSAPage(Page,RichTextMixin):
+    cover_pix = models.ImageField(upload_to="nrsa_pages")
+
+
+class NRSANewsEvent(Page,RichTextMixin,AdminThumbMixin):
+#class NRSANewsEvent(Page,RichText):
+    #edit_as_html = models.BooleanField(default=False)
+
+    categories = models.ManyToManyField(
+        "NRSANewsEventCategory",
+        verbose_name=_("Categories"),
+        blank=True,
+        related_name="news_events",
+    )
+
+    feature_pictured = models.ImageField(upload_to="news_event",null=True,blank=True)
+    featured = models.BooleanField(default=False)
+    featured_image = FileField(
+        verbose_name=_("Featured Image"),
+        upload_to=upload_to("nrsa.NRSANewsEvent.featured_image", "news_event"),
+        format="Image",
+        max_length=255,
+        null=True,
+        blank=True,
+    )
+
+    related_news = models.ManyToManyField(
+        "self", verbose_name=_("Related news"), blank=True
+    )
+
+    admin_thumb_field = "featured_image"
+
+    class Meta:
+        verbose_name = _("News event")
+        verbose_name_plural = _("News events")
+        ordering = ("-publish_date",)
+
+class Event(Page):
+    cover_pix = models.ImageField(upload_to="nrsa_pages")
+
+from django.contrib import admin
+from mezzanine.pages.admin import PageAdmin
+from .models import NRSAPage,Event,NRSANewsEvent,NRSANewsEventCategory
+from copy import deepcopy
+
+
+'''
+from copy import deepcopy
+from django.contrib import admin
+from mezzanine.pages.admin import PageAdmin
+from .models import Author, Book
+
+author_extra_fieldsets = ((None, {"fields": ("dob",)}),)
+
+class BookInline(admin.TabularInline):
+    model = Book
+
+class AuthorAdmin(PageAdmin):
+    inlines = (BookInline,)
+    fieldsets = deepcopy(PageAdmin.fieldsets) + author_extra_fieldsets
+
+admin.site.register(Author, AuthorAdmin)
+
+
+
+class BlogCategoryAdmin(BaseTranslationModelAdmin):
+    """
+    Admin class for blog categories. Hides itself from the admin menu
+    unless explicitly specified.
+    """
+
+    fieldsets = ((None, {"fields": ("title",)}),)
+
+    def has_module_permission(self, request):
+        """
+        Hide from the admin menu unless explicitly set in ``ADMIN_MENU_ORDER``.
+        """
+        for (name, items) in settings.ADMIN_MENU_ORDER:
+            if "blog.BlogCategory" in items:
+                return True
+        return False
+
+
+admin.site.register(BlogPost, BlogPostAdmin)
+admin.site.register(BlogCategory, BlogCategoryAdmin)
+
+
+'''
+from mezzanine.core.admin import (
+    BaseTranslationModelAdmin,
+    DisplayableAdmin,
+    OwnableAdmin,
+)
+
+class NRSANewsEventCategoryAdmin(BaseTranslationModelAdmin):
+    fieldsets = ((None, {"fields": ("title",)}),)
+
+
+
+nrsa_news_event_admin_fieldsets = deepcopy(PageAdmin.fieldsets)
+nrsa_news_event_admin_fieldsets[0][1]["fields"].insert(1, "categories")
+nrsa_news_event_admin_fieldsets = list(nrsa_news_event_admin_fieldsets)
+
+nrsa_news_event_extra_fieldsets = ((None, {"fields": ("featured",
+    "featured_image","feature_pictured")}),)
+
+
+class NRSANewsEventAdmin(PageAdmin):
+
+    fieldsets = nrsa_news_event_admin_fieldsets  + list(nrsa_news_event_extra_fieldsets)
+    filter_horizontal = (
+        "categories",
+        "related_news",
+    )
+
+admin.site.register(NRSAPage,PageAdmin)
+
+admin.site.register(NRSANewsEvent,NRSANewsEventAdmin)
+admin.site.register(NRSANewsEventCategory,NRSANewsEventCategoryAdmin)

@@ -1,0 +1,39 @@
+{% extends "pages/page.html" %}
+{% load mezzanine_tags %}
+{% block main %}
+	{{ block.super }}
+	
+    <p>{{ page.author.dob }}</p>
+    
+    <h2>Books</h2>
+
+    {%if page.author.book_set.all%}
+        {% for book in page.author.book_set.all %}
+        <div class="gallery row">
+            <div class="col-xs-4 col-sm-3">
+                <a class="thumbnail" href="{{ book.cover.url }}" rel="#image-{{ image.id }}">
+                    <img class="img-responsive" src="{{ MEDIA_URL }}{% thumbnail book.cover 250 250%}">
+                    <h4>{{book.title}}</h4>
+                </a>
+            </div>
+        </div> 
+        {% endfor %}
+    {%else%}
+        <p>...No Books for this author</p>
+    {% endif %}
+
+    <h3>Add book</h3>
+
+    <form action="." method="post" enctype="multipart/form-data">
+        {% csrf_token %}        
+        {{form.author}}
+        <label for="{{form.title.id_for_label}}">Book title:</label><br>
+        {{form.title}}
+        <br>
+        <label for="{{form.cover.id_for_label}}">Book Cover:</label><br>
+        {{form.cover}}      
+        <br><br>
+        <input type="submit" value="Upload" />
+    </form>
+    
+{% endblock %}

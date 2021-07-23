@@ -1,0 +1,15 @@
+{% extends "pages/page.html" %}
+{% load mezzanine_tags %}
+{% block title %}
+	{% editable page.poll.title %}
+		{{ page.poll.title }}
+	{% endeditable %}
+{% endblock %}
+{% block main %}
+	{{ block.super }}
+	<p>Published at {{ page.poll.pub_date }}</p>
+	<ul>
+		{% for choice in page.poll.choice_set.all %}
+			<li><b>{{ choice.choice_text }}</b> votes: <span class="badge">{{ choice.votes }}</span></li>
+		{% endfor %} </ul>
+{% endblock %}
